@@ -1,0 +1,45 @@
+name: Scrape MCA Portfolio Data
+
+on:
+  schedule:
+    # Daily at 6 AM UTC (1 AM EST / 2 AM EDT)
+    - cron: '0 6 * * *'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install Chrome
+      uses: browser-actions/setup-chrome@latest
+    
+    - name: Install ChromeDriver
+      uses: nanasess/setup-chromedriver@v2
+    
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+    
+    - name: Run MCA scraper
+      env:
+        WORKFORCE_USERNAME: ${{ secrets.WORKFORCE_USERNAME }}
+        WORKFORCE_PASSWORD: ${{ secrets.WORKFORCE_PASSWORD }}
+        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+      run: |
+        python scripts/mca_scraper.py
+    
+    - name: Notify on failure
+      if: failure()
+      run: |
+        echo "MCA scraping failed - check logs"
+        # Add Slack/email notification if needed
