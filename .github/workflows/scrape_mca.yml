@@ -27,6 +27,7 @@ jobs:
     
     - name: Install dependencies
       run: |
+        cd scripts
         pip install -r requirements.txt
     
     - name: Run MCA scraper
@@ -34,9 +35,10 @@ jobs:
         WORKFORCE_USERNAME: ${{ secrets.WORKFORCE_USERNAME }}
         WORKFORCE_PASSWORD: ${{ secrets.WORKFORCE_PASSWORD }}
         SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
       run: |
-        python scripts/mca_scraper.py
+        cd scripts
+        python mca_scraper.py
     
     - name: Notify on failure
       if: failure()
