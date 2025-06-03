@@ -45,13 +45,22 @@ class ScrapingConfig:
 @dataclass
 class Deal:
     """Data class for MCA deal information"""
-    deal_id: str
-    business_name: str
-    amount: float
-    status: str
-    date_created: datetime
-    last_updated: datetime
-    # Add more fields as needed based on actual data structure
+    deal_id: str                    # e.g., "MCA_19911" or "LOAN_19905"
+    business_name: str              # DBA name
+    amount: float                   # Purchase Price or Principal Amount
+    status: str                     # Performing, NSF, Canceled, etc.
+    date_created: datetime          # MCA App Date
+    last_updated: datetime          # When we extracted this data
+    deal_type: str = ""             # MCA, LOAN, MORTGAGE
+    owner: str = ""                 # Business owner name
+    funding_date: Optional[datetime] = None  # Actual funding date
+    current_balance: float = 0.0    # Current/RTR balance
+    funding_type: str = ""          # (W) ACH, Fixed Bi-Weekly, etc.
+    sales_rep: str = ""             # Sales representative
+    nature_of_business: str = ""    # Business type
+    years_in_business: int = 0      # Years the business has been operating
+    performance_ratio: str = ""     # Performance percentage
+    next_payment_due: Optional[datetime] = None  # Next payment date
 
 class CSLMCAScraper:
     def __init__(self, config: Optional[ScrapingConfig] = None):
@@ -312,43 +321,242 @@ class CSLMCAScraper:
             # Navigate to deals page if not already there
             current_url = self.driver.current_url
             if "cashadvance/list" not in current_url:
-                self.driver.get("https://1workforce.com/n/cashadvance/list")
+                self.driver.get("https://1workforce.com/n/cashadvance/list?listId=ListControl_Cashadvance&perPage=ALL")
                 time.sleep(5)
             
-            # Wait for table to load
+            # Wait for deal cards to load
             wait = WebDriverWait(self.driver, self.config.timeout)
             
-            # Try to find the data table
             try:
-                table = wait.until(EC.presence_of_element_located((By.TAG_NAME, "table")))
-                self.logger.info("✅ Found data table")
+                # Wait for the first deal card to appear
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "app-card")))
+                self.logger.info("✅ Found deal cards")
             except TimeoutException:
-                self.logger.warning("⚠️ No table found - checking for alternative data structure")
-                # You might need to adjust selectors based on actual page structure
+                self.logger.warning("⚠️ No deal cards found")
+                return deals
             
-            # Parse table data using BeautifulSoup
+            # Parse page data using BeautifulSoup
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
             
-            # TODO: Implement actual data extraction based on table structure
-            # This is a placeholder - you'll need to customize based on actual HTML structure
-            """
-            Example structure might be:
-            table_rows = soup.find('table').find_all('tr')[1:]  # Skip header
-            for row in table_rows:
-                cells = row.find_all('td')
-                if len(cells) >= 5:  # Adjust based on actual columns
-                    deal = Deal(
-                        deal_id=cells[0].text.strip(),
-                        business_name=cells[1].text.strip(),
-                        amount=float(cells[2].text.strip().replace('$', '').replace(',', '')),
-                        status=cells[3].text.strip(),
-                        date_created=datetime.fromisoformat(cells[4].text.strip()),
-                        last_updated=datetime.now(timezone.utc)
-                    )
-                    deals.append(deal)
-            """
+            # Find all deal cards
+            deal_cards = soup.find_all('div', class_='app-card')
+            self.logger.info(f"Found {len(deal_cards)} deal cards")
             
-            self.logger.info(f"✅ Extracted {len(deals)} deals")
+            for card in deal_cards:
+                try:
+                    # Extract deal ID and type from the customer link
+                    customer_span = card.find('span', class_='customer')
+                    if not customer_span:
+                        continue
+                        
+                    customer_link = customer_span.find('a')
+                    if not customer_link:
+                        continue
+                        
+                    deal_text = customer_link.text.strip()
+                    # Extract deal ID from text like "MCA # 19911" or "LOAN # 19905"
+                    deal_parts = deal_text.split(' # ')
+                    if len(deal_parts) != 2:
+                        continue
+                        
+                    deal_type = deal_parts[0].strip()
+                    deal_id = deal_parts[1].strip()
+                    
+                    # Extract business information from left column
+                    left_col = card.find('div', class_='col-md-6')
+                    if not left_col:
+                        continue
+                    
+                    # Extract DBA (business name)
+                    dba_text = ""
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "DBA:":
+                            dba_text = b_tag.next_sibling
+                            if dba_text:
+                                dba_text = dba_text.strip()
+                            break
+                    
+                    # Extract owner
+                    owner_text = ""
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Owner:":
+                            owner_text = b_tag.next_sibling
+                            if owner_text:
+                                owner_text = owner_text.strip()
+                            break
+                    
+                    # Extract funding date
+                    funding_date = None
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Funding Date:":
+                            date_text = b_tag.next_sibling
+                            if date_text:
+                                try:
+                                    funding_date = datetime.strptime(date_text.strip(), "%m/%d/%Y")
+                                except ValueError:
+                                    pass
+                            break
+                    
+                    # Extract principal/purchase amount
+                    amount = 0.0
+                    amount_fields = ["Purchase Price:", "Principal Amount:"]
+                    for field in amount_fields:
+                        for b_tag in left_col.find_all('b'):
+                            if b_tag.text.strip() == field:
+                                amount_text = b_tag.next_sibling
+                                if amount_text:
+                                    try:
+                                        # Remove commas and convert to float
+                                        amount = float(amount_text.strip().replace(',', ''))
+                                    except ValueError:
+                                        pass
+                                break
+                        if amount > 0:
+                            break
+                    
+                    # Extract status from right column
+                    right_col = card.find('div', class_='col-md-6 right')
+                    status = ""
+                    if right_col:
+                        status_div = right_col.find('div', class_='text-info')
+                        if status_div:
+                            status_b = status_div.find('b')
+                            if status_b:
+                                status = status_b.get_text(strip=True)
+                    
+                    # Extract current balance (for loans) or RTR balance (for MCAs)
+                    current_balance = 0.0
+                    balance_fields = ["Current Balance:", "RTR Balance:"]
+                    for field in balance_fields:
+                        for b_tag in left_col.find_all('b'):
+                            if b_tag.text.strip() == field:
+                                balance_text = b_tag.next_sibling
+                                if balance_text:
+                                    try:
+                                        # Extract just the number part before parentheses
+                                        balance_str = balance_text.strip().split('(')[0].replace(',', '')
+                                        current_balance = float(balance_str)
+                                    except (ValueError, IndexError):
+                                        pass
+                                break
+                        if current_balance > 0:
+                            break
+                    
+                    # Extract MCA App Date for date_created
+                    date_created = None
+                    if right_col:
+                        for b_tag in right_col.find_all('b'):
+                            if "MCA App Date" in b_tag.get_text():
+                                # Find the next cell that contains the date
+                                parent_row = b_tag.find_parent('div', class_='row')
+                                if parent_row:
+                                    date_col = parent_row.find('div', class_='col-md-7')
+                                    if date_col and date_col.find('b'):
+                                        date_text = date_col.find('b').text.strip()
+                                        try:
+                                            date_created = datetime.strptime(date_text, "%Y-%m-%d %H:%M:%S")
+                                        except ValueError:
+                                            pass
+                                break
+                    
+                    # Extract additional fields
+                    funding_type = ""
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Funding Type:":
+                            funding_text = b_tag.next_sibling
+                            if funding_text:
+                                funding_type = funding_text.strip()
+                            break
+                    
+                    # Extract sales rep from right column
+                    sales_rep = ""
+                    if right_col:
+                        for b_tag in right_col.find_all('b'):
+                            if b_tag.text.strip() == "Sales Rep:":
+                                parent_row = b_tag.find_parent('div', class_='row')
+                                if parent_row:
+                                    rep_col = parent_row.find('div', class_='col-md-7')
+                                    if rep_col and rep_col.find('b'):
+                                        sales_rep = rep_col.find('b').text.strip()
+                                break
+                    
+                    # Extract nature of business
+                    nature_of_business = ""
+                    if right_col:
+                        for b_tag in right_col.find_all('b'):
+                            if b_tag.text.strip() == "Nature of Business:":
+                                parent_row = b_tag.find_parent('div', class_='row')
+                                if parent_row:
+                                    business_col = parent_row.find('div', class_='col-md-7')
+                                    if business_col and business_col.find('b'):
+                                        nature_of_business = business_col.find('b').text.strip()
+                                break
+                    
+                    # Extract years in business
+                    years_in_business = 0
+                    if right_col:
+                        for b_tag in right_col.find_all('b'):
+                            if b_tag.text.strip() == "Years in business:":
+                                parent_row = b_tag.find_parent('div', class_='row')
+                                if parent_row:
+                                    years_col = parent_row.find('div', class_='col-md-7')
+                                    if years_col and years_col.find('b'):
+                                        try:
+                                            years_in_business = int(years_col.find('b').text.strip())
+                                        except ValueError:
+                                            pass
+                                break
+                    
+                    # Extract performance ratio
+                    performance_ratio = ""
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Performance Ratio:":
+                            ratio_text = b_tag.next_sibling
+                            if ratio_text:
+                                performance_ratio = ratio_text.strip()
+                            break
+                    
+                    # Extract next payment due date
+                    next_payment_due = None
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Next Payment Due Date:":
+                            date_text = b_tag.next_sibling
+                            if date_text and date_text.strip():
+                                try:
+                                    next_payment_due = datetime.strptime(date_text.strip(), "%m/%d/%Y")
+                                except ValueError:
+                                    pass
+                            break
+                    
+                    # Create Deal object with all extracted data
+                    if deal_id and dba_text:  # Minimum required fields
+                        deal = Deal(
+                            deal_id=f"{deal_type}_{deal_id}",
+                            business_name=dba_text,
+                            amount=amount,
+                            status=status,
+                            date_created=date_created or datetime.now(timezone.utc),
+                            last_updated=datetime.now(timezone.utc),
+                            deal_type=deal_type,
+                            owner=owner_text,
+                            funding_date=funding_date,
+                            current_balance=current_balance,
+                            funding_type=funding_type,
+                            sales_rep=sales_rep,
+                            nature_of_business=nature_of_business,
+                            years_in_business=years_in_business,
+                            performance_ratio=performance_ratio,
+                            next_payment_due=next_payment_due
+                        )
+                        deals.append(deal)
+                        
+                        self.logger.debug(f"Extracted deal: {deal.deal_id} - {deal.business_name}")
+                    
+                except Exception as e:
+                    self.logger.warning(f"Error parsing deal card: {e}")
+                    continue
+            
+            self.logger.info(f"✅ Successfully extracted {len(deals)} deals")
             
         except Exception as e:
             self.logger.error(f"❌ Data extraction failed: {e}")
@@ -374,24 +582,45 @@ class CSLMCAScraper:
                 return
             
             # Convert to dict format for Supabase
-            deals_data = [
-                {
+            deals_data = []
+            for deal in valid_deals:
+                deal_dict = {
                     'deal_id': deal.deal_id,
                     'business_name': deal.business_name,
                     'amount': deal.amount,
                     'status': deal.status,
-                    'date_created': deal.date_created.isoformat(),
+                    'date_created': deal.date_created.isoformat() if deal.date_created else None,
                     'last_updated': deal.last_updated.isoformat(),
-                    'extracted_at': datetime.now(timezone.utc).isoformat()
+                    'extracted_at': datetime.now(timezone.utc).isoformat(),
+                    'deal_type': deal.deal_type,
+                    'owner': deal.owner,
+                    'funding_date': deal.funding_date.isoformat() if deal.funding_date else None,
+                    'current_balance': deal.current_balance,
+                    'funding_type': deal.funding_type,
+                    'sales_rep': deal.sales_rep,
+                    'nature_of_business': deal.nature_of_business,
+                    'years_in_business': deal.years_in_business,
+                    'performance_ratio': deal.performance_ratio,
+                    'next_payment_due': deal.next_payment_due.isoformat() if deal.next_payment_due else None
                 }
-                for deal in valid_deals
-            ]
+                deals_data.append(deal_dict)
             
-            # Upsert to database
-            result = self.supabase.table('mca_deals').upsert(deals_data).execute()
+            # Upsert to database (update if exists, insert if new)
+            result = self.supabase.table('mca_deals').upsert(
+                deals_data, 
+                on_conflict='deal_id'  # Use deal_id as the unique key
+            ).execute()
             
             if result.data:
                 self.logger.info(f"✅ Successfully saved {len(valid_deals)} deals to database")
+                
+                # Log summary by status
+                status_counts = {}
+                for deal in valid_deals:
+                    status = deal.status or "Unknown"
+                    status_counts[status] = status_counts.get(status, 0) + 1
+                
+                self.logger.info(f"📊 Status breakdown: {status_counts}")
             else:
                 self.logger.error("❌ Database save failed - no data returned")
                 
