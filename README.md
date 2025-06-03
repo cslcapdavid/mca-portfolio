@@ -1,5 +1,6 @@
 📋 UPDATED STEP-BY-STEP INSTRUCTIONS:
-
+git clone https://github.com/github/mca-portfolio.git
+cd mca-portfolio/scripts
 ═══════════════════════════════════════════════════════════════════════════════
 PHASE 1: LOCAL COOKIE EXTRACTION  
 ═══════════════════════════════════════════════════════════════════════════════
