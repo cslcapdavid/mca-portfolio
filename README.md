@@ -5,11 +5,14 @@ cd mca-portfolio/scripts
 PHASE 1: LOCAL COOKIE EXTRACTION  
 ═══════════════════════════════════════════════════════════════════════════════
 
+
+
 1. 🖥️ RUN LOCALLY (on your machine):
    ```bash
    ```# Save the script as capture_cookies.py```
    python capture_cookies.py
    ```
+   
 
 2. 🔑 MANUAL LOGIN:
    - Browser window will open
@@ -33,6 +36,8 @@ cat cookies.b64
    # Copy this output to clipboard
    ```
 
+# Just run this single command
+./run_scraper.sh
 ═══════════════════════════════════════════════════════════════════════════════
 PHASE 2: GITHUB REPOSITORY SETUP
 ═══════════════════════════════════════════════════════════════════════════════
