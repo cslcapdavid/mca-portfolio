@@ -758,6 +758,14 @@ class CSLMCAScraper:
             # Convert to dict format for Supabase - match exact schema
             deals_data = []
             for deal in valid_deals:
+                # Helper function to safely convert dates
+                def safe_date_convert(date_obj):
+                    if date_obj is None:
+                        return None
+                    if hasattr(date_obj, 'isoformat'):
+                        return date_obj.isoformat()
+                    return str(date_obj)
+                
                 deal_dict = {
                     'deal_id': deal.deal_id,
                     'deal_type': deal.deal_type,
@@ -765,18 +773,18 @@ class CSLMCAScraper:
                     'dba': deal.dba,
                     'owner': deal.owner,
                     'funding_type': deal.funding_type,
-                    'funding_date': deal.funding_date.isoformat()() if deal.funding_date else None,
+                    'funding_date': safe_date_convert(deal.funding_date),
                     'purchase_price': deal.purchase_price,
                     'principal_amount': deal.principal_amount,
-                    'receivables_amount': deal.receivables_purchased_amount,  # Maps to receivables_amount in schema
+                    'receivables_amount': deal.receivables_purchased_amount,
                     'current_balance': deal.current_balance,
                     'status': deal.status,
                     'sales_rep': deal.sales_rep,
                     'nature_of_business': deal.nature_of_business,
                     'performance_ratio': deal.performance_ratio,
                     'years_in_business': deal.years_in_business,
-                    'next_payment_due_date': deal.next_payment_due.isoformat() if deal.next_payment_due else None,  # Fixed column name
-                    'mca_app_date': deal.mca_app_date,
+                    'next_payment_due_date': safe_date_convert(deal.next_payment_due),
+                    'mca_app_date': safe_date_convert(deal.mca_app_date),
                     'monthly_cc_processing': deal.monthly_cc_processing,
                     'monthly_bank_deposits': deal.monthly_bank_deposits,
                     'avg_daily_bank_bal': deal.avg_daily_bank_bal,
