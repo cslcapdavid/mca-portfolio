@@ -783,8 +783,8 @@ class CSLMCAScraper:
                     'sos_status': deal.sos_status,
                     'google_score': deal.google_score,
                     'twitter_score': deal.twitter_score,
-                    'extracted_at': datetime.now(timezone.utc),
-                    'last_updated': datetime.now(timezone.utc)
+                    'extracted_at': datetime.now(timezone.utc).isoformat(),
+                    'last_updated': datetime.now(timezone.utc).isoformat()
                 }
                 deals_data.append(deal_dict)
             
