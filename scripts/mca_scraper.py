@@ -765,7 +765,7 @@ class CSLMCAScraper:
                     'dba': deal.dba,
                     'owner': deal.owner,
                     'funding_type': deal.funding_type,
-                    'funding_date': deal.funding_date.date() if deal.funding_date else None,
+                    'funding_date': deal.funding_date.isoformat()() if deal.funding_date else None,
                     'purchase_price': deal.purchase_price,
                     'principal_amount': deal.principal_amount,
                     'receivables_amount': deal.receivables_purchased_amount,  # Maps to receivables_amount in schema
@@ -775,7 +775,7 @@ class CSLMCAScraper:
                     'nature_of_business': deal.nature_of_business,
                     'performance_ratio': deal.performance_ratio,
                     'years_in_business': deal.years_in_business,
-                    'next_payment_due_date': deal.next_payment_due.date() if deal.next_payment_due else None,  # Fixed column name
+                    'next_payment_due_date': deal.next_payment_due.isoformat() if deal.next_payment_due else None,  # Fixed column name
                     'mca_app_date': deal.mca_app_date,
                     'monthly_cc_processing': deal.monthly_cc_processing,
                     'monthly_bank_deposits': deal.monthly_bank_deposits,
