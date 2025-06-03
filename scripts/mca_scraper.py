@@ -44,23 +44,32 @@ class ScrapingConfig:
 
 @dataclass
 class Deal:
-    """Data class for MCA deal information"""
+    """Data class for MCA deal information - matches actual HTML structure"""
     deal_id: str                    # e.g., "MCA_19911" or "LOAN_19905"
-    business_name: str              # DBA name
-    amount: float                   # Purchase Price or Principal Amount
-    status: str                     # Performing, NSF, Canceled, etc.
-    date_created: datetime          # MCA App Date
-    last_updated: datetime          # When we extracted this data
-    deal_type: str = ""             # MCA, LOAN, MORTGAGE
-    owner: str = ""                 # Business owner name
-    funding_date: Optional[datetime] = None  # Actual funding date
-    current_balance: float = 0.0    # Current/RTR balance
-    funding_type: str = ""          # (W) ACH, Fixed Bi-Weekly, etc.
-    sales_rep: str = ""             # Sales representative
-    nature_of_business: str = ""    # Business type
-    years_in_business: int = 0      # Years the business has been operating
-    performance_ratio: str = ""     # Performance percentage
-    next_payment_due: Optional[datetime] = None  # Next payment date
+    dba: str                        # DBA name from HTML
+    owner: str                      # Business owner name
+    deal_type: str                  # MCA, LOAN, MORTGAGE
+    funding_type: str               # Funding Type from HTML
+    funding_date: Optional[datetime] = None  # Funding Date
+    purchase_price: float = 0.0     # Purchase Price (for MCAs)
+    principal_amount: float = 0.0   # Principal Amount (for LOANs)
+    receivables_purchased_amount: float = 0.0  # Receivables Purchased Amount
+    current_balance: float = 0.0    # RTR Balance or Current Balance
+    status: str = ""                # Performing, NSF, Canceled, etc.
+    next_payment_due: Optional[datetime] = None  # Next Payment Due Date
+    performance_ratio: str = ""     # Performance Ratio percentage
+    mca_app_date: Optional[datetime] = None  # MCA App Date
+    nature_of_business: str = ""    # Nature of Business
+    monthly_cc_processing: float = 0.0  # Monthly CC Processing
+    monthly_bank_deposits: float = 0.0   # Monthly Bank Deposits
+    avg_daily_bank_bal: float = 0.0     # Avg Daily Bank Bal
+    sales_rep: str = ""             # Sales Rep
+    sos_status: str = ""            # SOS Status
+    google_score: str = ""          # Google Score
+    twitter_score: str = ""         # Twitter Score
+    years_in_business: int = 0      # Years in business
+    extracted_at: datetime = None   # When we extracted this
+    last_updated: datetime = None   # When we last updated this
 
 class CSLMCAScraper:
     def __init__(self, config: Optional[ScrapingConfig] = None):
@@ -390,6 +399,9 @@ class CSLMCAScraper:
                     if not left_col:
                         continue
                     
+                    # Extract right column for status and other info
+                    right_col = card.find('div', class_='col-md-6 right')
+                    
                     # Extract DBA (business name)
                     dba_text = ""
                     for b_tag in left_col.find_all('b'):
@@ -420,25 +432,45 @@ class CSLMCAScraper:
                                     pass
                             break
                     
-                    # Extract principal/purchase amount
-                    amount = 0.0
-                    amount_fields = ["Purchase Price:", "Principal Amount:"]
-                    for field in amount_fields:
-                        for b_tag in left_col.find_all('b'):
-                            if b_tag.text.strip() == field:
-                                amount_text = b_tag.next_sibling
-                                if amount_text:
-                                    try:
-                                        # Remove commas and convert to float
-                                        amount = float(amount_text.strip().replace(',', ''))
-                                    except ValueError:
-                                        pass
-                                break
-                        if amount > 0:
+                    # Extract Purchase Price (for MCAs)
+                    purchase_price = 0.0
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Purchase Price:":
+                            amount_text = b_tag.next_sibling
+                            if amount_text:
+                                try:
+                                    purchase_price = float(amount_text.strip().replace(',', ''))
+                                except ValueError:
+                                    pass
+                            break
+                    
+                    # Extract Principal Amount (for LOANs)
+                    principal_amount = 0.0
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Principal Amount:":
+                            amount_text = b_tag.next_sibling
+                            if amount_text:
+                                try:
+                                    principal_amount = float(amount_text.strip().replace(',', ''))
+                                except ValueError:
+                                    pass
+                            break
+                    
+                    # Extract Receivables Purchased Amount
+                    receivables_purchased_amount = 0.0
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Receivables Purchased Amount:":
+                            amount_text = b_tag.next_sibling
+                            if amount_text:
+                                try:
+                                    # Extract just the number part before parentheses
+                                    amount_str = amount_text.strip().split('(')[0].replace(',', '')
+                                    receivables_purchased_amount = float(amount_str)
+                                except (ValueError, IndexError):
+                                    pass
                             break
                     
                     # Extract status from right column
-                    right_col = card.find('div', class_='col-md-6 right')
                     status = ""
                     if right_col:
                         status_div = right_col.find('div', class_='text-info')
@@ -447,7 +479,7 @@ class CSLMCAScraper:
                             if status_b:
                                 status = status_b.get_text(strip=True)
                     
-                    # Extract current balance (for loans) or RTR balance (for MCAs)
+                    # Extract current balance (RTR Balance or Current Balance)
                     current_balance = 0.0
                     balance_fields = ["Current Balance:", "RTR Balance:"]
                     for field in balance_fields:
@@ -465,24 +497,23 @@ class CSLMCAScraper:
                         if current_balance > 0:
                             break
                     
-                    # Extract MCA App Date for date_created
-                    date_created = None
+                    # Extract MCA App Date
+                    mca_app_date = None
                     if right_col:
                         for b_tag in right_col.find_all('b'):
                             if "MCA App Date" in b_tag.get_text():
-                                # Find the next cell that contains the date
                                 parent_row = b_tag.find_parent('div', class_='row')
                                 if parent_row:
                                     date_col = parent_row.find('div', class_='col-md-7')
                                     if date_col and date_col.find('b'):
                                         date_text = date_col.find('b').text.strip()
                                         try:
-                                            date_created = datetime.strptime(date_text, "%Y-%m-%d %H:%M:%S")
+                                            mca_app_date = datetime.strptime(date_text, "%Y-%m-%d %H:%M:%S")
                                         except ValueError:
                                             pass
                                 break
                     
-                    # Extract additional fields
+                    # Extract funding type
                     funding_type = ""
                     for b_tag in left_col.find_all('b'):
                         if b_tag.text.strip() == "Funding Type:":
@@ -555,21 +586,24 @@ class CSLMCAScraper:
                     if deal_id and dba_text:  # Minimum required fields
                         deal = Deal(
                             deal_id=f"{deal_type}_{deal_id}",
-                            business_name=dba_text,
-                            amount=amount,
-                            status=status,
-                            date_created=date_created or datetime.now(timezone.utc),
-                            last_updated=datetime.now(timezone.utc),
-                            deal_type=deal_type,
+                            dba=dba_text,
                             owner=owner_text,
-                            funding_date=funding_date,
-                            current_balance=current_balance,
+                            deal_type=deal_type,
                             funding_type=funding_type,
-                            sales_rep=sales_rep,
-                            nature_of_business=nature_of_business,
-                            years_in_business=years_in_business,
+                            funding_date=funding_date,
+                            purchase_price=purchase_price,
+                            principal_amount=principal_amount,
+                            receivables_purchased_amount=receivables_purchased_amount,
+                            current_balance=current_balance,
+                            status=status,
+                            next_payment_due=next_payment_due,
                             performance_ratio=performance_ratio,
-                            next_payment_due=next_payment_due
+                            mca_app_date=mca_app_date,
+                            nature_of_business=nature_of_business,
+                            sales_rep=sales_rep,
+                            years_in_business=years_in_business,
+                            extracted_at=datetime.now(timezone.utc),
+                            last_updated=datetime.now(timezone.utc)
                         )
                         deals.append(deal)
                         
@@ -589,9 +623,9 @@ class CSLMCAScraper:
 
     def validate_deal_data(self, deal: Deal) -> bool:
         """Validate extracted deal data"""
-        if not deal.deal_id or not deal.business_name:
+        if not deal.deal_id or not deal.dba:
             return False
-        if deal.amount <= 0:
+        if deal.purchase_price <= 0 and deal.principal_amount <= 0:
             return False
         return True
 
@@ -604,27 +638,35 @@ class CSLMCAScraper:
                 self.logger.warning("⚠️ No valid deals to save")
                 return
             
-            # Convert to dict format for Supabase with safe column names
+            # Convert to dict format for Supabase - match exact schema
             deals_data = []
             for deal in valid_deals:
                 deal_dict = {
                     'deal_id': deal.deal_id,
-                    'business_name': deal.business_name,
-                    'principal_amount': deal.amount,  # Use principal_amount instead of amount
-                    'status': deal.status,
-                    'date_created': deal.date_created.isoformat() if deal.date_created else None,
-                    'last_updated': deal.last_updated.isoformat(),
-                    'extracted_at': datetime.now(timezone.utc).isoformat(),
-                    'deal_type': deal.deal_type,
+                    'dba': deal.dba,
                     'owner': deal.owner,
-                    'funding_date': deal.funding_date.isoformat() if deal.funding_date else None,
-                    'current_balance': deal.current_balance,
+                    'deal_type': deal.deal_type,
                     'funding_type': deal.funding_type,
-                    'sales_rep': deal.sales_rep,
-                    'nature_of_business': deal.nature_of_business,
-                    'years_in_business': deal.years_in_business,
+                    'funding_date': deal.funding_date.isoformat() if deal.funding_date else None,
+                    'purchase_price': deal.purchase_price,
+                    'principal_amount': deal.principal_amount,
+                    'receivables_purchased_amount': deal.receivables_purchased_amount,
+                    'current_balance': deal.current_balance,
+                    'status': deal.status,
+                    'next_payment_due': deal.next_payment_due.isoformat() if deal.next_payment_due else None,
                     'performance_ratio': deal.performance_ratio,
-                    'next_payment_due': deal.next_payment_due.isoformat() if deal.next_payment_due else None
+                    'mca_app_date': deal.mca_app_date.isoformat() if deal.mca_app_date else None,
+                    'nature_of_business': deal.nature_of_business,
+                    'monthly_cc_processing': deal.monthly_cc_processing,
+                    'monthly_bank_deposits': deal.monthly_bank_deposits,
+                    'avg_daily_bank_bal': deal.avg_daily_bank_bal,
+                    'sales_rep': deal.sales_rep,
+                    'sos_status': deal.sos_status,
+                    'google_score': deal.google_score,
+                    'twitter_score': deal.twitter_score,
+                    'years_in_business': deal.years_in_business,
+                    'extracted_at': datetime.now(timezone.utc).isoformat(),
+                    'last_updated': datetime.now(timezone.utc).isoformat()
                 }
                 deals_data.append(deal_dict)
             
