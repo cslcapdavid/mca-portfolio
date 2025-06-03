@@ -30,21 +30,21 @@ class CSLMCAScraper:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
-    def setup_driver(self):
-        options = Options()
-        options.add_argument('--headless=new')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.add_argument('--disable-gpu')
-        options.add_argument('--window-size=1920,1080')
-        options.add_argument('--disable-blink-features=AutomationControlled')
-        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option('useAutomationExtension', False)
-        options.add_experimental_option("prefs", {
-            "profile.default_content_setting_values.notifications": 2,
-            "profile.managed_default_content_settings.images": 2
-        })
+def setup_driver(self):
+    options = Options()
+    options.add_argument('--headless=new')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    options.add_experimental_option("prefs", {
+        "profile.default_content_setting_values.notifications": 2,
+        "profile.managed_default_content_settings.images": 2
+    })
 
     self.driver = webdriver.Chrome(options=options)
     self.driver.execute_script("""
@@ -65,16 +65,6 @@ class CSLMCAScraper:
             self.driver.add_cookie(cookie)
         self.driver.get("https://1workforce.com/n/cashadvance/list")
         self.logger.info("✅ Loaded session cookies and navigated directly")
-    
-        # TEMP: Disable cookies for debugging login
-        # if os.path.exists("cookies.pkl"):
-        #     self.driver.get("https://1workforce.com/")
-        #     with open("cookies.pkl", "rb") as f:
-        #         cookies = pickle.load(f)
-        #     for cookie in cookies:
-        #         self.driver.add_cookie(cookie)
-        #     self.driver.refresh()
-        #     self.logger.info("✅ Cookies loaded")
 
     def login(self, username, password):
         try:
