@@ -71,6 +71,10 @@ class Deal:
     years_in_business: int = 0      # Years in business
     extracted_at: datetime = None   # When we extracted this
     last_updated: datetime = None   # When we last updated this
+    past_due_amount: float = 0.0
+    status_category: str = ""
+    rtr_balance: float = 0.0  # RTR Balance
+    performance_details: str = ""  
 
 class CSLMCAScraper:
     def __init__(self, config: Optional[ScrapingConfig] = None):
@@ -85,6 +89,56 @@ class CSLMCAScraper:
         self.debug_dir = Path("debug")
         self.debug_dir.mkdir(exist_ok=True)
 
+    def clean_dba_name(self, dba_text: str) -> str:
+        """Clean and properly case DBA names"""
+        if not dba_text:
+            return ""
+        
+        # Remove extra whitespace and convert to title case
+        cleaned = dba_text.strip().title()
+        
+        # Handle common business abbreviations that should stay uppercase
+        abbreviations = ['LLC', 'INC', 'CORP', 'LTD', 'LP', 'LLP', 'PC', 'PA', 'DBA']
+        for abbr in abbreviations:
+            cleaned = cleaned.replace(f' {abbr.title()}', f' {abbr}')
+            cleaned = cleaned.replace(f' {abbr.lower()}', f' {abbr}')
+        
+        # Handle common words that should be lowercase
+        lowercase_words = ['and', 'or', 'of', 'the', 'in', 'on', 'at', 'by', 'for', 'with']
+        for word in lowercase_words:
+            cleaned = cleaned.replace(f' {word.title()} ', f' {word} ')
+        
+        return cleaned
+    
+        dba_text = self.clean_dba_name(dba_text)
+    
+    def map_status_category(self, status: str) -> str:
+        """Map detailed status to simplified category"""
+        if not status:
+            return ""
+        
+        status_lower = status.lower().strip()
+        
+        # Current statuses
+        if status_lower in ['performing', 'reperforming']:
+            return "Current"
+        
+        # Not Current statuses  
+        elif status_lower in ['nsf', 'suspended', 'suspended/nsf', 'non-performing']:
+            return "Not Current"
+        
+        # Matured statuses
+        elif status_lower in ['satisfied', 'settled']:
+            return "Matured"
+        
+        # Canceled statuses
+        elif status_lower in ['canceled', 'declined']:
+            return "Canceled"
+        
+        # Default case
+        else:
+            return "Other"
+    
     def setup_logging(self):
         """Enhanced logging setup with file output"""
         Path("logs").mkdir(exist_ok=True)
@@ -435,7 +489,7 @@ class CSLMCAScraper:
                         if b_tag.text.strip() == "DBA:":
                             dba_text = b_tag.next_sibling
                             if dba_text:
-                                dba_text = dba_text.strip()
+                                dba_text = self.clean_dba_name(dba_text.strip())
                             break
                     
                     # Extract owner
@@ -692,35 +746,77 @@ class CSLMCAScraper:
                                     if twitter_col and twitter_col.find('b'):
                                         twitter_score = twitter_col.find('b').text.strip()
                                 break
+
+                    # Extract Total Amount Past Due
+                    past_due_amount = 0.0
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "Total Amount Past Due:":
+                            past_due_text = b_tag.next_sibling
+                            if past_due_text:
+                                try:
+                                    # Extract just the number part, remove $ and commas
+                                    past_due_str = past_due_text.strip().replace('$', '').replace(',', '').split('(')[0]
+                                    past_due_amount = float(past_due_str)
+                                except (ValueError, IndexError):
+                                    pass
+                            break
+
+                    # Extract RTR Balance (separate from current_balance)
+                    rtr_balance = 0.0
+                    for b_tag in left_col.find_all('b'):
+                        if b_tag.text.strip() == "RTR Balance:":
+                            rtr_text = b_tag.next_sibling
+                            if rtr_text:
+                                try:
+                                    # Extract just the number part before parentheses
+                                    rtr_str = rtr_text.strip().split('(')[0].replace('$', '').replace(',', '')
+                                    rtr_balance = float(rtr_str)
+                                except (ValueError, IndexError):
+                                    pass
+                            break
                     
+                    # Extract Performance Details (full text)
+                    performance_details = ""
+                    for b_tag in left_col.find_all('b'):
+                        if "Performance" in b_tag.text.strip():
+                            # Look for the full text after the Performance label
+                            performance_text = b_tag.next_sibling
+                            if performance_text:
+                                performance_details = performance_text.strip()
+                            break
+                            
                     # Create Deal object with all extracted data
                     if deal_id and dba_text:  # Minimum required fields
                         deal = Deal(
                             deal_id=f"{deal_type}_{deal_id}",
-                            dba=dba_text,
-                            owner=owner_text,
-                            deal_type=deal_type,
-                            funding_type=funding_type,
-                            funding_date=funding_date,
-                            purchase_price=purchase_price,
-                            principal_amount=principal_amount,
-                            receivables_purchased_amount=receivables_purchased_amount,
-                            current_balance=current_balance,
-                            status=status,
-                            next_payment_due=next_payment_due,
-                            performance_ratio=performance_ratio,
-                            mca_app_date=mca_app_date,
-                            nature_of_business=nature_of_business,
-                            monthly_cc_processing=monthly_cc_processing,
-                            monthly_bank_deposits=monthly_bank_deposits,
-                            avg_daily_bank_bal=avg_daily_bank_bal,
-                            sales_rep=sales_rep,
-                            sos_status=sos_status,
-                            google_score=google_score,
-                            twitter_score=twitter_score,
-                            years_in_business=years_in_business,
-                            extracted_at=datetime.now(timezone.utc),
-                            last_updated=datetime.now(timezone.utc)
+                                    dba=self.clean_dba_name(dba_text),  # Apply cleaning here
+                                    owner=owner_text,
+                                    deal_type=deal_type,
+                                    funding_type=funding_type,
+                                    funding_date=funding_date,
+                                    purchase_price=purchase_price,
+                                    principal_amount=principal_amount,
+                                    receivables_purchased_amount=receivables_purchased_amount,
+                                    current_balance=current_balance,
+                                    status=status,
+                                    next_payment_due=next_payment_due,
+                                    performance_ratio=performance_ratio,
+                                    mca_app_date=mca_app_date,
+                                    nature_of_business=nature_of_business,
+                                    monthly_cc_processing=monthly_cc_processing,
+                                    monthly_bank_deposits=monthly_bank_deposits,
+                                    avg_daily_bank_bal=avg_daily_bank_bal,
+                                    sales_rep=sales_rep,
+                                    sos_status=sos_status,
+                                    google_score=google_score,
+                                    twitter_score=twitter_score,
+                                    years_in_business=years_in_business,
+                                    extracted_at=datetime.now(timezone.utc),
+                                    last_updated=datetime.now(timezone.utc),
+                                    past_due_amount=past_due_amount,  # ADD THIS LINE
+                                    status_category=self.map_status_category(status),
+                                    rtr_balance=rtr_balance,
+                                    performance_details=performance_details
                         )
                         deals.append(deal)
                         
@@ -745,6 +841,23 @@ class CSLMCAScraper:
         if deal.purchase_price <= 0 and deal.principal_amount <= 0:
             return False
         return True
+    def extract_deal_number(self, deal_id: str) -> int:
+        """Extract deal number from deal_id and ensure it matches loan_id format"""
+        if not deal_id or '_' not in deal_id:
+            return None
+        
+        try:
+            # Extract number part from "MCA_19911" or "LOAN_19905" 
+            number_part = deal_id.split('_')[1]
+            deal_number = int(number_part)
+            
+            # Log for verification during testing
+            self.logger.debug(f"Extracted deal_number {deal_number} from deal_id {deal_id}")
+            
+            return deal_number
+        except (ValueError, IndexError) as e:
+            self.logger.warning(f"Could not extract deal_number from {deal_id}: {e}")
+            return None
 
     def save_to_database(self, deals: List[Deal]):
         """Save deals to Supabase with error handling"""
@@ -769,7 +882,7 @@ class CSLMCAScraper:
                 deal_dict = {
                     'deal_id': deal.deal_id,
                     'deal_type': deal.deal_type,
-                    'deal_number': int(deal.deal_id.split('_')[1]) if '_' in deal.deal_id else None,
+                    'deal_number': self.extract_deal_number(deal.deal_id),
                     'dba': deal.dba,
                     'owner': deal.owner,
                     'funding_type': deal.funding_type,
@@ -792,7 +905,11 @@ class CSLMCAScraper:
                     'google_score': deal.google_score,
                     'twitter_score': deal.twitter_score,
                     'extracted_at': datetime.now(timezone.utc).isoformat(),
-                    'last_updated': datetime.now(timezone.utc).isoformat()
+                    'last_updated': datetime.now(timezone.utc).isoformat(),
+                    'past_due_amount': deal.past_due_amount,
+                    'rtr_balance': deal.rtr_balance,
+                    'performance_details': deal.performance_details,
+                    'status_category': deal.status_category
                 }
                 deals_data.append(deal_dict)
             
