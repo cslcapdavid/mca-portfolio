@@ -28,4 +28,4 @@ jobs:
           # Add your Supabase credentials
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: python mca_scraper.py
+        run: python scripts/mca_scraper.py
