@@ -652,14 +652,13 @@ class CSLMCAScraper:
                 self.logger.warning("⚠️ No valid deals to save")
                 return
             
-            # Convert to dict format for Supabase - match your EXACT schema
+            # Convert to dict format for Supabase - match your EXACT column names
             deals_data = []
             for deal in valid_deals:
                 deal_dict = {
                     'deal_id': deal.deal_id,
                     'deal_type': deal.deal_type,
-                    'deal_number': int(deal.deal_id.split('_')[1]) if '_' in deal.deal_id else None,
-                    'dba': deal.dba,  # Using 'dba' not 'business_name'
+                    'dba': deal.dba,
                     'owner': deal.owner,
                     'funding_type': deal.funding_type,
                     'funding_date': deal.funding_date.date() if deal.funding_date else None,
@@ -674,15 +673,15 @@ class CSLMCAScraper:
                     'years_in_business': deal.years_in_business,
                     'next_payment_due_date': deal.next_payment_due.date() if deal.next_payment_due else None,
                     'amount': deal.purchase_price if deal.purchase_price > 0 else deal.principal_amount,
-                    'mca_app_date': deal.mca_app_date,  # Using 'mca_app_date' not 'date_created'
+                    'mca_app_date': deal.mca_app_date,
                     'monthly_cc_processing': deal.monthly_cc_processing,
                     'monthly_bank_deposits': deal.monthly_bank_deposits,
                     'avg_daily_bank_bal': deal.avg_daily_bank_bal,
                     'sos_status': deal.sos_status,
                     'google_score': deal.google_score,
                     'twitter_score': deal.twitter_score,
-                    'extracted_at': datetime.now(timezone.utc).isoformat(),
-                    'last_updated': datetime.now(timezone.utc).isoformat()
+                    'extracted_at': datetime.now(timezone.utc),
+                    'last_updated': datetime.now(timezone.utc)
                 }
                 deals_data.append(deal_dict)base - match exact schema
             deals_data = []
