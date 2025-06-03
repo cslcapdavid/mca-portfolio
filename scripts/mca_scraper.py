@@ -19,7 +19,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 class CookieExtractor:
-    """Extract and prepare cookies for GitHub Secrets"""
+    """Extract and save cookies as cookies.pkl for manual base64 encoding"""
     
     def __init__(self):
         self.driver = None
@@ -40,7 +40,7 @@ class CookieExtractor:
         """
         Step 1: Manual login with 2FA, then extract cookies
         """
-        print("🔑 STEP 1: Manual Login Process")
+        print("🔑 Manual Login Process")
         print("=" * 50)
         
         try:
@@ -71,69 +71,36 @@ class CookieExtractor:
             cookies = self.driver.get_cookies()
             print(f"📥 Extracted {len(cookies)} cookies")
             
-            # Get additional session info
-            session_info = {
-                'cookies': cookies,
-                'user_agent': self.driver.execute_script("return navigator.userAgent;"),
-                'current_url': current_url,
-                'extracted_at': datetime.now().isoformat(),
-                'expires_estimate': (datetime.now() + timedelta(days=14)).isoformat()  # Conservative estimate
-            }
-            
-            return session_info
+            return cookies
             
         except Exception as e:
             print(f"❌ Error during manual login: {e}")
             return None
     
-    def save_cookies_locally(self, session_info):
+    def save_cookies_as_pkl(self, cookies):
         """
-        Step 2: Save cookies locally for testing
+        Step 2: Save cookies as cookies.pkl for manual base64 encoding
         """
-        print("\n💾 STEP 2: Saving Cookies Locally")
+        print("\n💾 Saving Cookies as cookies.pkl")
         print("=" * 50)
         
         try:
-            # Create output directory
-            output_dir = Path("extracted_cookies")
-            output_dir.mkdir(exist_ok=True)
+            # Save cookies as pickle file
+            with open("cookies.pkl", 'wb') as f:
+                pickle.dump(cookies, f)
+            print(f"✅ Saved cookies.pkl with {len(cookies)} cookies")
             
-            # Save as pickle (for local testing)
-            pickle_file = output_dir / "session_cookies.pkl"
-            with open(pickle_file, 'wb') as f:
-                pickle.dump(session_info, f)
-            print(f"✅ Saved pickle file: {pickle_file}")
-            
-            # Save as JSON (human readable)
-            json_file = output_dir / "session_info.json"
-            with open(json_file, 'w') as f:
-                json.dump(session_info, f, indent=2, default=str)
-            print(f"✅ Saved JSON file: {json_file}")
-            
-            # Prepare for GitHub Secrets (base64 encoded)
-            github_secret = base64.b64encode(pickle.dumps(session_info)).decode('utf-8')
-            
-            secret_file = output_dir / "github_secret.txt"
-            with open(secret_file, 'w') as f:
-                f.write(github_secret)
-            print(f"✅ Saved GitHub secret: {secret_file}")
-            
-            print(f"\n📋 GitHub Secret Value (copy this):")
-            print("-" * 50)
-            print(github_secret)
-            print("-" * 50)
-            
-            return github_secret
+            return True
             
         except Exception as e:
             print(f"❌ Error saving cookies: {e}")
-            return None
+            return False
     
-    def test_cookies_locally(self, session_info):
+    def test_cookies_locally(self, cookies):
         """
         Step 3: Test cookies work locally
         """
-        print("\n🧪 STEP 3: Testing Cookies Locally")
+        print("\n🧪 Testing Cookies Locally")
         print("=" * 50)
         
         try:
@@ -145,7 +112,7 @@ class CookieExtractor:
             time.sleep(2)
             
             # Load cookies
-            for cookie in session_info['cookies']:
+            for cookie in cookies:
                 try:
                     test_driver.add_cookie(cookie)
                 except Exception as e:
@@ -183,26 +150,26 @@ class CookieExtractor:
         
         try:
             # Step 1: Manual login and extract
-            session_info = self.manual_login_and_extract()
-            if not session_info:
-                print("❌ Failed to extract session info")
+            cookies = self.manual_login_and_extract()
+            if not cookies:
+                print("❌ Failed to extract cookies")
                 return False
             
-            # Step 2: Save cookies
-            github_secret = self.save_cookies_locally(session_info)
-            if not github_secret:
+            # Step 2: Save cookies as pkl
+            if not self.save_cookies_as_pkl(cookies):
                 print("❌ Failed to save cookies")
                 return False
             
             # Step 3: Test cookies
-            if self.test_cookies_locally(session_info):
+            if self.test_cookies_locally(cookies):
                 print("\n🎉 SUCCESS! Cookies extracted and tested successfully")
                 print("\n📋 NEXT STEPS:")
-                print("1. Copy the GitHub secret value above")
-                print("2. Go to your GitHub repository")
-                print("3. Settings → Secrets and variables → Actions")
-                print("4. Add new secret: WORKFORCE_COOKIES_B64")
-                print("5. Paste the value from github_secret.txt")
+                print("1. Run in terminal: base64 -i cookies.pkl -o cookies.b64")
+                print("2. Copy contents of cookies.b64")
+                print("3. Go to your GitHub repository")
+                print("4. Settings → Secrets and variables → Actions")
+                print("5. Add new secret: WORKFORCE_COOKIES_B64")
+                print("6. Paste the base64 content")
                 return True
             else:
                 print("\n❌ Cookie test failed - extraction may not have worked")
@@ -219,13 +186,13 @@ class CookieExtractor:
 
 class ProductionScraper:
     """
-    Modified scraper that uses GitHub Secrets cookies
+    Modified scraper that uses WORKFORCE_COOKIES_B64 secret
     This is what runs in GitHub Actions
     """
     
     def __init__(self):
         self.driver = None
-        self.session_info = None
+        self.cookies = None
     
     def setup_driver(self):
         """Setup headless driver for production"""
@@ -241,35 +208,33 @@ class ProductionScraper:
     
     def load_session_from_secret(self):
         """
-        Load session info from GitHub Secret
+        Load cookies from WORKFORCE_COOKIES_B64 GitHub Secret
         """
         try:
-            # Get the base64 encoded session from environment
-            encoded_session = os.getenv('WORKFORCE_COOKIES_B64')
-            if not encoded_session:
+            # Get the base64 encoded cookies from environment
+            encoded_cookies = os.getenv('WORKFORCE_COOKIES_B64')
+            if not encoded_cookies:
                 raise ValueError("WORKFORCE_COOKIES_B64 secret not found")
             
-            # Decode and load session info
-            session_data = base64.b64decode(encoded_session.encode('utf-8'))
-            self.session_info = pickle.loads(session_data)
+            # Decode and load cookies
+            cookies_data = base64.b64decode(encoded_cookies.encode('utf-8'))
+            self.cookies = pickle.loads(cookies_data)
             
-            print(f"✅ Loaded session info from secret")
-            print(f"   - Extracted at: {self.session_info.get('extracted_at')}")
-            print(f"   - Estimated expiry: {self.session_info.get('expires_estimate')}")
-            print(f"   - Cookies count: {len(self.session_info.get('cookies', []))}")
+            print(f"✅ Loaded cookies from WORKFORCE_COOKIES_B64 secret")
+            print(f"   - Cookies count: {len(self.cookies)}")
             
             return True
             
         except Exception as e:
-            print(f"❌ Failed to load session from secret: {e}")
+            print(f"❌ Failed to load cookies from secret: {e}")
             return False
     
     def apply_session_to_driver(self):
         """
-        Apply loaded session to driver
+        Apply loaded cookies to driver
         """
         try:
-            if not self.session_info:
+            if not self.cookies:
                 return False
             
             # Navigate to domain first
@@ -278,7 +243,7 @@ class ProductionScraper:
             
             # Apply cookies
             cookies_applied = 0
-            for cookie in self.session_info['cookies']:
+            for cookie in self.cookies:
                 try:
                     self.driver.add_cookie(cookie)
                     cookies_applied += 1
@@ -287,18 +252,10 @@ class ProductionScraper:
             
             print(f"✅ Applied {cookies_applied} cookies")
             
-            # Set user agent to match
-            user_agent = self.session_info.get('user_agent')
-            if user_agent:
-                self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                    "userAgent": user_agent
-                })
-                print("✅ User agent set to match original session")
-            
             return True
             
         except Exception as e:
-            print(f"❌ Failed to apply session: {e}")
+            print(f"❌ Failed to apply cookies: {e}")
             return False
     
     def verify_authentication(self):
@@ -348,13 +305,13 @@ class ProductionScraper:
             # Setup driver
             self.setup_driver()
             
-            # Load session from GitHub Secret
+            # Load cookies from GitHub Secret
             if not self.load_session_from_secret():
-                raise Exception("Failed to load session cookies")
+                raise Exception("Failed to load cookies from WORKFORCE_COOKIES_B64")
             
-            # Apply session to driver
+            # Apply cookies to driver
             if not self.apply_session_to_driver():
-                raise Exception("Failed to apply session cookies")
+                raise Exception("Failed to apply cookies")
             
             # Verify authentication
             if not self.verify_authentication():
