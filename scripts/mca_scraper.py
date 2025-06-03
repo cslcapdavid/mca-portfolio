@@ -55,33 +55,45 @@ class CSLMCAScraper:
         """)
         self.logger.info("Chrome driver initialized")
 
-        if os.path.exists("cookies.pkl"):
-            self.driver.get("https://1workforce.com/")
-            with open("cookies.pkl", "rb") as f:
-                cookies = pickle.load(f)
-            for cookie in cookies:
-                self.driver.add_cookie(cookie)
-            self.driver.refresh()
-            self.logger.info("✅ Cookies loaded")
+        # TEMP: Disable cookies for debugging login
+        # if os.path.exists("cookies.pkl"):
+        #     self.driver.get("https://1workforce.com/")
+        #     with open("cookies.pkl", "rb") as f:
+        #         cookies = pickle.load(f)
+        #     for cookie in cookies:
+        #         self.driver.add_cookie(cookie)
+        #     self.driver.refresh()
+        #     self.logger.info("✅ Cookies loaded")
 
     def login(self, username, password):
         try:
             self.driver.get("https://1workforce.com/n/login")
             time.sleep(3)
+            self.logger.info("Waiting for username field...")
             wait = WebDriverWait(self.driver, 15)
             user_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='text']")))
             pass_field = self.driver.find_element(By.CSS_SELECTOR, "input[type='password']")
+
+            self.logger.info("Filling in credentials...")
             user_field.send_keys(username)
             pass_field.send_keys(password)
             pass_field.send_keys(Keys.RETURN)
             time.sleep(5)
+
+            self.logger.info(f"Post-login URL: {self.driver.current_url}")
             if any(x in self.driver.current_url for x in ["/dashboard", "/portfolio", "/cashadvance"]):
                 with open("cookies.pkl", "wb") as f:
                     pickle.dump(self.driver.get_cookies(), f)
                 return True
+
+            self.logger.warning("Login URL check failed - not redirected to dashboard")
             return False
+
         except Exception as e:
             self.logger.error(f"Login failed: {e}")
+            self.driver.save_screenshot("login_fail.png")
+            with open("login_fail_dump.html", "w", encoding="utf-8") as f:
+                f.write(self.driver.page_source)
             return False
 
     def accept_terms_if_prompted(self):
@@ -91,6 +103,7 @@ class CSLMCAScraper:
             checkbox.click()
             btn = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Accept') or contains(text(), 'Continue')]")))
             btn.click()
+            self.logger.info("✅ Accepted terms of service")
         except TimeoutException:
             self.logger.info("No terms prompt found")
 
@@ -101,15 +114,23 @@ class CSLMCAScraper:
             raise ValueError("Missing credentials")
 
         try:
+            self.logger.info("🚀 Starting CSL Capital MCA portfolio extraction...")
             self.setup_driver()
+
             if not self.login(username, password):
                 raise Exception("Login failed")
+
             self.accept_terms_if_prompted()
             self.logger.info("✅ Ready to scrape after login and TOS")
-            # ... (the rest of the scrape logic continues)
+            # TODO: Call scraping logic here once login is stable
+
+        except Exception as e:
+            self.logger.error(f"❌ MCA extraction failed: {e}")
+            raise
         finally:
             if self.driver:
                 self.driver.quit()
+                self.logger.info("🔐 Browser closed")
 
 
 def main():
