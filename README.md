@@ -7,7 +7,7 @@ PHASE 1: LOCAL COOKIE EXTRACTION
 
 1. 🖥️ RUN LOCALLY (on your machine):
    ```bash
-   # Save the script as capture_cookies.py
+   ```# Save the script as capture_cookies.py```
    python capture_cookies.py
    ```
 
