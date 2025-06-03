@@ -20,7 +20,8 @@ PHASE 1: LOCAL COOKIE EXTRACTION
 3. 💾 ENCODE COOKIES:
    ```bash
    # Run this in terminal after step 2
-   base64 -i cookies.pkl -o cookies.b64
+  base64 -i cookies.pkl -o cookies.b64
+cat cookies.b64
    ```
 
 4. 📋 COPY BASE64 CONTENT:
