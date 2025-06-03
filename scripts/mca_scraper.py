@@ -318,11 +318,13 @@ class CSLMCAScraper:
         try:
             self.logger.info("📊 Starting data extraction...")
             
-            # Navigate to deals page if not already there
-            current_url = self.driver.current_url
-            if "cashadvance/list" not in current_url:
-                self.driver.get("https://1workforce.com/n/cashadvance/list?listId=ListControl_Cashadvance&perPage=ALL")
-                time.sleep(5)
+            # Navigate to deals page with ALL parameter
+            self.logger.info("🔍 Navigating to deals page with ALL parameter...")
+            self.driver.get("https://1workforce.com/n/cashadvance/list?listId=ListControl_Cashadvance&perPage=ALL")
+            
+            # Wait longer for all deals to load
+            self.logger.info("⏳ Waiting for all deals to load...")
+            time.sleep(10)  # Increased wait time for all deals
             
             # Wait for deal cards to load
             wait = WebDriverWait(self.driver, self.config.timeout)
@@ -335,12 +337,33 @@ class CSLMCAScraper:
                 self.logger.warning("⚠️ No deal cards found")
                 return deals
             
-            # Parse page data using BeautifulSoup
+            # Check if we can find the paginator to see total count
             soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+            paginator = soup.find('span', string=lambda text: text and '(' in text and 'of' in text)
+            if paginator:
+                self.logger.info(f"📋 Paginator info: {paginator.text.strip()}")
             
             # Find all deal cards
             deal_cards = soup.find_all('div', class_='app-card')
             self.logger.info(f"Found {len(deal_cards)} deal cards")
+            
+            # If we only got 25 cards, try clicking "All" button
+            if len(deal_cards) == 25:
+                self.logger.info("🔄 Only found 25 cards, looking for 'All' button...")
+                try:
+                    # Look for "All" button in paginator
+                    all_button = self.driver.find_element(By.XPATH, "//span[contains(@class, 'pgn-btn') and contains(text(), 'All')]")
+                    if all_button:
+                        self.logger.info("🔘 Found 'All' button, clicking...")
+                        all_button.click()
+                        time.sleep(10)  # Wait for page to reload with all deals
+                        
+                        # Re-parse the page
+                        soup = BeautifulSoup(self.driver.page_source, 'html.parser')
+                        deal_cards = soup.find_all('div', class_='app-card')
+                        self.logger.info(f"After clicking 'All': Found {len(deal_cards)} deal cards")
+                except Exception as e:
+                    self.logger.warning(f"Could not click 'All' button: {e}")
             
             for card in deal_cards:
                 try:
@@ -581,13 +604,13 @@ class CSLMCAScraper:
                 self.logger.warning("⚠️ No valid deals to save")
                 return
             
-            # Convert to dict format for Supabase
+            # Convert to dict format for Supabase with safe column names
             deals_data = []
             for deal in valid_deals:
                 deal_dict = {
                     'deal_id': deal.deal_id,
                     'business_name': deal.business_name,
-                    'amount': deal.amount,
+                    'principal_amount': deal.amount,  # Use principal_amount instead of amount
                     'status': deal.status,
                     'date_created': deal.date_created.isoformat() if deal.date_created else None,
                     'last_updated': deal.last_updated.isoformat(),
@@ -605,27 +628,54 @@ class CSLMCAScraper:
                 }
                 deals_data.append(deal_dict)
             
-            # Upsert to database (update if exists, insert if new)
-            result = self.supabase.table('mca_deals').upsert(
-                deals_data, 
-                on_conflict='deal_id'  # Use deal_id as the unique key
-            ).execute()
+            # Try to upsert to database
+            try:
+                result = self.supabase.table('mca_deals').upsert(
+                    deals_data, 
+                    on_conflict='deal_id'
+                ).execute()
+                
+                if result.data:
+                    self.logger.info(f"✅ Successfully saved {len(valid_deals)} deals to database")
+                    
+                    # Log summary by status
+                    status_counts = {}
+                    for deal in valid_deals:
+                        status = deal.status or "Unknown"
+                        status_counts[status] = status_counts.get(status, 0) + 1
+                    
+                    self.logger.info(f"📊 Status breakdown: {status_counts}")
+                else:
+                    self.logger.error("❌ Database save failed - no data returned")
             
-            if result.data:
-                self.logger.info(f"✅ Successfully saved {len(valid_deals)} deals to database")
+            except Exception as db_error:
+                self.logger.error(f"❌ Database upsert failed: {db_error}")
+                self.logger.info("🔄 Trying simple insert instead...")
                 
-                # Log summary by status
-                status_counts = {}
-                for deal in valid_deals:
-                    status = deal.status or "Unknown"
-                    status_counts[status] = status_counts.get(status, 0) + 1
-                
-                self.logger.info(f"📊 Status breakdown: {status_counts}")
-            else:
-                self.logger.error("❌ Database save failed - no data returned")
+                # Try simple insert as fallback
+                result = self.supabase.table('mca_deals').insert(deals_data).execute()
+                if result.data:
+                    self.logger.info(f"✅ Successfully inserted {len(valid_deals)} deals to database")
+                else:
+                    raise Exception("Both upsert and insert failed")
                 
         except Exception as e:
             self.logger.error(f"❌ Database save failed: {e}")
+            self.logger.info("💾 Saving deals data to local file as backup...")
+            
+            # Save to local file as backup
+            backup_file = f"deals_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            with open(backup_file, 'w') as f:
+                import json
+                json.dump([{
+                    'deal_id': deal.deal_id,
+                    'business_name': deal.business_name,
+                    'amount': deal.amount,
+                    'status': deal.status,
+                    'deal_type': deal.deal_type,
+                    'owner': deal.owner
+                } for deal in valid_deals], f, indent=2, default=str)
+            self.logger.info(f"💾 Backup saved to {backup_file}")
             raise
 
     def run_daily_extraction(self):
