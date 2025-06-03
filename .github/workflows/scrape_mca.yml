@@ -45,11 +45,11 @@ jobs:
       run: |
         echo "MCA scraping failed - check logs"
     
-    - name: Upload debug artifacts if login fails
+    - name: Upload login debug files
       if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: login-debug
         path: |
-          login_fail_dump.html
-          login_fail.png
+          ./login_fail_dump.html
+          ./login_fail.png
