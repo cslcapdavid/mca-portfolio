@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 CSL Capital MCA Portfolio Scraper - Production Version
+
 Works with separate capture_cookies.py script for cookie extraction
 """
 import os
