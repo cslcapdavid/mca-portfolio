@@ -638,7 +638,31 @@ class CSLMCAScraper:
                 self.logger.warning("⚠️ No valid deals to save")
                 return
             
-            # Convert to dict format for Supabase - match exact schema
+            # Convert to dict format for Supabase - match your exact schema
+            deals_data = []
+            for deal in valid_deals:
+                deal_dict = {
+                    'deal_id': deal.deal_id,
+                    'deal_type': deal.deal_type,
+                    'deal_number': int(deal.deal_id.split('_')[1]) if '_' in deal.deal_id else None,
+                    'dba': deal.dba,
+                    'owner': deal.owner,
+                    'funding_type': deal.funding_type,
+                    'funding_date': deal.funding_date.date() if deal.funding_date else None,
+                    'purchase_price': deal.purchase_price,
+                    'principal_amount': deal.principal_amount,
+                    'receivables_amount': deal.receivables_purchased_amount,
+                    'current_balance': deal.current_balance,
+                    'status': deal.status,
+                    'sales_rep': deal.sales_rep,
+                    'nature_of_business': deal.nature_of_business,
+                    'performance_ratio': deal.performance_ratio,
+                    'years_in_business': deal.years_in_business,
+                    'next_payment_due_date': deal.next_payment_due.date() if deal.next_payment_due else None,
+                    'amount': deal.purchase_price if deal.purchase_price > 0 else deal.principal_amount,  # Populate amount field
+                    'extracted_at': datetime.now(timezone.utc).isoformat()
+                }
+                deals_data.append(deal_dict)base - match exact schema
             deals_data = []
             for deal in valid_deals:
                 deal_dict = {
