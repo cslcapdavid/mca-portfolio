@@ -81,7 +81,21 @@ class CSLMCAScraper:
         """)
         
         self.logger.info("Chrome driver initialized for 1Workforce")
+    if os.path.exists("cookies.pkl"):
+        self.driver.get("https://1workforce.com/")
+        with open("cookies.pkl", "rb") as f:
+            cookies = pickle.load(f)
+        for cookie in cookies:
+            self.driver.add_cookie(cookie)
+        self.driver.refresh()
+        self.logger.info("✅ Cookies loaded")
 
+    # Add check
+if self.is_logged_in():
+    self.logger.info("✅ Already logged in via cookies")
+else:
+    self.login(username, password)
+    
     def login(self, username, password):
         """Login specifically optimized for 1Workforce form structure"""
         try:
@@ -279,6 +293,26 @@ class CSLMCAScraper:
                 self.logger.info("Could not get additional debug info")
             
             return False
+
+
+import pickle
+
+with open("cookies.pkl", "wb") as f:
+    pickle.dump(self.driver.get_cookies(), f)
+
+    def accept_terms_if_prompted(self):
+    try:
+        wait = WebDriverWait(self.driver, 10)
+        checkbox = wait.until(EC.element_to_be_clickable((By.XPATH, "//label[contains(text(), 'agree')]/preceding-sibling::input[@type='checkbox']")))
+        checkbox.click()
+        self.logger.info("✅ Terms checkbox clicked")
+        
+        # Click submit/accept button if exists
+        button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Accept') or contains(text(), 'Continue')]")))
+        button.click()
+        self.logger.info("✅ Terms accepted")
+    except TimeoutException:
+        self.logger.info("✅ No terms popup appeared (skipping)")
 
     def navigate_to_portfolio(self):
         """Navigate to portfolio page"""
@@ -697,6 +731,8 @@ class CSLMCAScraper:
         """Main extraction process for GitHub Actions"""
         username = os.getenv('WORKFORCE_USERNAME')
         password = os.getenv('WORKFORCE_PASSWORD')
+
+        self.accept_terms_if_prompted()
         
         if not username or not password:
             raise ValueError("WORKFORCE_USERNAME and WORKFORCE_PASSWORD environment variables are required")
