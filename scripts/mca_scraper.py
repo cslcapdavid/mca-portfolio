@@ -760,30 +760,31 @@ class CSLMCAScraper:
             for deal in valid_deals:
                 deal_dict = {
                     'deal_id': deal.deal_id,
+                    'deal_type': deal.deal_type,
+                    'deal_number': int(deal.deal_id.split('_')[1]) if '_' in deal.deal_id else None,
                     'dba': deal.dba,
                     'owner': deal.owner,
-                    'deal_type': deal.deal_type,
                     'funding_type': deal.funding_type,
-                    'funding_date': deal.funding_date.isoformat() if deal.funding_date else None,
+                    'funding_date': deal.funding_date.date() if deal.funding_date else None,
                     'purchase_price': deal.purchase_price,
                     'principal_amount': deal.principal_amount,
-                    'receivables_purchased_amount': deal.receivables_purchased_amount,
+                    'receivables_amount': deal.receivables_purchased_amount,  # Maps to receivables_amount in schema
                     'current_balance': deal.current_balance,
                     'status': deal.status,
-                    'next_payment_due': deal.next_payment_due.isoformat() if deal.next_payment_due else None,
-                    'performance_ratio': deal.performance_ratio,
-                    'mca_app_date': deal.mca_app_date.isoformat() if deal.mca_app_date else None,
+                    'sales_rep': deal.sales_rep,
                     'nature_of_business': deal.nature_of_business,
+                    'performance_ratio': deal.performance_ratio,
+                    'years_in_business': deal.years_in_business,
+                    'next_payment_due_date': deal.next_payment_due.date() if deal.next_payment_due else None,  # Fixed column name
+                    'mca_app_date': deal.mca_app_date,
                     'monthly_cc_processing': deal.monthly_cc_processing,
                     'monthly_bank_deposits': deal.monthly_bank_deposits,
                     'avg_daily_bank_bal': deal.avg_daily_bank_bal,
-                    'sales_rep': deal.sales_rep,
                     'sos_status': deal.sos_status,
                     'google_score': deal.google_score,
                     'twitter_score': deal.twitter_score,
-                    'years_in_business': deal.years_in_business,
-                    'extracted_at': datetime.now(timezone.utc).isoformat(),
-                    'last_updated': datetime.now(timezone.utc).isoformat()
+                    'extracted_at': datetime.now(timezone.utc),
+                    'last_updated': datetime.now(timezone.utc)
                 }
                 deals_data.append(deal_dict)
             
