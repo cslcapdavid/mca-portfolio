@@ -1,8 +1,8 @@
 name: MCA Scraper
 on:
   schedule:
-    - cron: '0 9 * * 1-5'  # Weekdays at 9 AM
-  workflow_dispatch:  # Manual trigger button
+    - cron: '0 9 * * 1-5'
+  workflow_dispatch:
 
 jobs:
   scrape:
@@ -19,10 +19,13 @@ jobs:
         uses: browser-actions/setup-chrome@latest
         
       - name: Install dependencies
-        run: pip install selenium beautifulsoup4
-        
+        run: |
+          pip install selenium beautifulsoup4 supabase
+          
       - name: Run scraper
         env:
-          WORKFORCE_SESSION_COOKIES: ${{ secrets.WORKFORCE_SESSION_COOKIES }}
-          SCRAPER_MODE: production
-        run: python cookie_extractor.py
+          WORKFORCE_COOKIES_B64: ${{ secrets.WORKFORCE_COOKIES_B64 }}
+          # Add your Supabase credentials
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+        run: python mca_scraper.py
