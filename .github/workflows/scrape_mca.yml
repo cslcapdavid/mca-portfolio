@@ -1,7 +1,7 @@
 name: MCA Scraper
 on:
   schedule:
-    - cron: '0 9 * * 1-5'
+    - cron: '0 9 * * 1-5'  # Fixed the space
   workflow_dispatch:
 
 jobs:
@@ -20,7 +20,7 @@ jobs:
         
       - name: Install dependencies
         run: |
-          pip install selenium beautifulsoup4 supabase
+          pip install selenium beautifulsoup4 supabase python-dateutil
           
       - name: Run scraper
         env:
