@@ -201,7 +201,7 @@ class CookieExtractor:
                 print("1. Copy the GitHub secret value above")
                 print("2. Go to your GitHub repository")
                 print("3. Settings → Secrets and variables → Actions")
-                print("4. Add new secret: WORKFORCE_SESSION_COOKIES")
+                print("4. Add new secret: WORKFORCE_COOKIES_B64")
                 print("5. Paste the value from github_secret.txt")
                 return True
             else:
@@ -245,9 +245,9 @@ class ProductionScraper:
         """
         try:
             # Get the base64 encoded session from environment
-            encoded_session = os.getenv('WORKFORCE_SESSION_COOKIES')
+            encoded_session = os.getenv('WORKFORCE_COOKIES_B64')
             if not encoded_session:
-                raise ValueError("WORKFORCE_SESSION_COOKIES secret not found")
+                raise ValueError("WORKFORCE_COOKIES_B64 secret not found")
             
             # Decode and load session info
             session_data = base64.b64decode(encoded_session.encode('utf-8'))
