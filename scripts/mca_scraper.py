@@ -30,65 +30,65 @@ class CSLMCAScraper:
         logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
         self.logger = logging.getLogger(__name__)
 
-def setup_driver(self):
-    options = Options()
-    options.add_argument('--headless=new')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    options.add_experimental_option("prefs", {
-        "profile.default_content_setting_values.notifications": 2,
-        "profile.managed_default_content_settings.images": 2
-    })
+    def setup_driver(self):
+        options = Options()
+        options.add_argument('--headless=new')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+        options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        options.add_experimental_option('useAutomationExtension', False)
+        options.add_experimental_option("prefs", {
+            "profile.default_content_setting_values.notifications": 2,
+            "profile.managed_default_content_settings.images": 2
+        })
 
-    self.driver = webdriver.Chrome(options=options)
-    self.driver.execute_script("""
-        Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
-        Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
-        Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
-        window.chrome = {runtime: {}};
-    """)
-    self.logger.info("Chrome driver initialized")
+        self.driver = webdriver.Chrome(options=options)
+        self.driver.execute_script("""
+            Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+            Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+            Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+            window.chrome = {runtime: {}};
+        """)
+        self.logger.info("Chrome driver initialized")
 
-    # ✅ Load cookies if present
-    cookie_path = "scripts/cookies.pkl"
-    if os.path.exists(cookie_path):
-        self.driver.get("https://1workforce.com/")
-        with open(cookie_path, "rb") as f:
-            cookies = pickle.load(f)
-        for cookie in cookies:
-            self.driver.add_cookie(cookie)
-        self.driver.get("https://1workforce.com/n/cashadvance/list")
-        self.logger.info("✅ Loaded session cookies and navigated directly")
+        # ✅ Load cookies if present
+        cookie_path = "scripts/cookies.pkl"
+        if os.path.exists(cookie_path):
+            self.driver.get("https://1workforce.com/")
+            with open(cookie_path, "rb") as f:
+                cookies = pickle.load(f)
+            for cookie in cookies:
+                self.driver.add_cookie(cookie)
+            self.driver.get("https://1workforce.com/n/cashadvance/list")
+            self.logger.info("✅ Loaded session cookies and navigated directly")
 
     def login(self, username, password):
         try:
             self.driver.get("https://1workforce.com/n/login")
             time.sleep(3)
             self.logger.info("Waiting for username field...")
-    
+
             wait = WebDriverWait(self.driver, 15)
             user_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
             user_field.click()
-    
+
             pass_field = self.driver.find_element(By.CSS_SELECTOR, "input[type='password']")
             user_field.send_keys(username)
             pass_field.send_keys(password)
             pass_field.send_keys(Keys.RETURN)
             time.sleep(5)
-    
+
             if any(x in self.driver.current_url for x in ["/dashboard", "/portfolio", "/cashadvance"]):
                 with open("cookies.pkl", "wb") as f:
                     pickle.dump(self.driver.get_cookies(), f)
                 return True
-    
+
             return False
-    
+
         except Exception as e:
             self.logger.error(f"Login failed: {e}")
             try:
