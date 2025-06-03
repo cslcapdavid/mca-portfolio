@@ -1,56 +1,28 @@
-name: Scrape MCA Portfolio Data
-
+name: MCA Scraper
 on:
   schedule:
-    # Every Monday at 6 AM UTC (1 AM EST / 2 AM EDT)
-    - cron: '0 6 * * 1'
-  workflow_dispatch:  # Manual trigger
+    - cron: '0 9 * * 1-5'  # Weekdays at 9 AM
+  workflow_dispatch:  # Manual trigger button
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.9'
-    
-    - name: Install Chrome
-      uses: browser-actions/setup-chrome@latest
-    
-    - name: Install ChromeDriver
-      uses: nanasess/setup-chromedriver@v2
-    
-    - name: Install dependencies
-      run: |
-        cd scripts
-        pip install -r requirements.txt
-
-    - name: Restore cookies
-      run: |
-        echo "${{ secrets.WORKFORCE_COOKIES_B64 }}" | base64 --decode > scripts/cookies.pkl
+      - uses: actions/checkout@v3
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          
+      - name: Install Chrome
+        uses: browser-actions/setup-chrome@latest
         
-    - name: Run MCA scraper
-      env:
-        WORKFORCE_USERNAME: ${{ secrets.WORKFORCE_USERNAME }}
-        WORKFORCE_PASSWORD: ${{ secrets.WORKFORCE_PASSWORD }}
-        SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-        SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      run: |
-        cd scripts
-        python mca_scraper.py
-    
-    - name: Notify on failure
-      if: failure()
-      run: |
-        echo "MCA scraping failed - check logs"
-    
-    - name: Upload failure debug files
-      uses: actions/upload-artifact@v4
-      with:
-        name: login-failure-artifacts
-        path: scripts/login_fail*
+      - name: Install dependencies
+        run: pip install selenium beautifulsoup4
+        
+      - name: Run scraper
+        env:
+          WORKFORCE_SESSION_COOKIES: ${{ secrets.WORKFORCE_SESSION_COOKIES }}
+          SCRAPER_MODE: production
+        run: python cookie_extractor.py
