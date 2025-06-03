@@ -19,14 +19,12 @@ jobs:
         uses: browser-actions/setup-chrome@latest
         
       - name: Install dependencies
-        run: |
-          pip install selenium beautifulsoup4 supabase
+        run: pip install selenium beautifulsoup4 supabase
           
       - name: Run scraper
+        working-directory: scripts
         env:
           WORKFORCE_COOKIES_B64: ${{ secrets.WORKFORCE_COOKIES_B64 }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-        run: |
-          cd scripts
-          python mca_scraper.py
+        run: python mca_scraper.py
