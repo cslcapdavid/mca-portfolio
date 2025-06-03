@@ -22,10 +22,21 @@ jobs:
         run: |
           pip install selenium beautifulsoup4 supabase
           
+      - name: Debug - List files
+        run: |
+          echo "=== Current working directory ==="
+          pwd
+          echo "=== Root directory contents ==="
+          ls -la
+          echo "=== Scripts directory contents ==="
+          ls -la scripts/
+          echo "=== Python path test ==="
+          python -c "import sys; print('Python path:', sys.path)"
+          
       - name: Run scraper
         env:
           WORKFORCE_COOKIES_B64: ${{ secrets.WORKFORCE_COOKIES_B64 }}
-          # Add your Supabase credentials
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          PYTHONPATH: ${{ github.workspace }}
         run: python scripts/mca_scraper.py
