@@ -2,8 +2,8 @@ name: Scrape MCA Portfolio Data
 
 on:
   schedule:
-    # Daily at 6 AM UTC (1 AM EST / 2 AM EDT)
-    - cron: '0 6 * * *'
+    # Every Monday at 6 AM UTC (1 AM EST / 2 AM EDT)
+    - cron: '0 6 * * 1'
   workflow_dispatch:  # Manual trigger
 
 jobs:
@@ -32,8 +32,8 @@ jobs:
 
     - name: Restore cookies
       run: |
-        echo "${{ secrets.WORKFORCE_COOKIES_B64 }}" | base64 --decode > cookies.pkl
-    
+        echo "${{ secrets.WORKFORCE_COOKIES_B64 }}" | base64 --decode > scripts/cookies.pkl
+        
     - name: Run MCA scraper
       env:
         WORKFORCE_USERNAME: ${{ secrets.WORKFORCE_USERNAME }}
