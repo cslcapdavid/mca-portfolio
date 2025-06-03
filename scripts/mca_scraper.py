@@ -618,7 +618,7 @@ class CSLMCAScraper:
                                     cc_col = parent_row.find('div', class_='col-md-7')
                                     if cc_col and cc_col.find('b'):
                                         try:
-                                            cc_text = cc_col.find('b').text.strip().replace('$', '').replace(',', '')
+                                            cc_text = cc_col.find('b').text.strip().replace('
                         deals.append(deal)
                         
                         self.logger.debug(f"Extracted deal: {deal.deal_id} - {deal.business_name}")
