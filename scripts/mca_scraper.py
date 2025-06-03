@@ -92,9 +92,9 @@ class CSLMCAScraper:
         except Exception as e:
             self.logger.error(f"Login failed: {e}")
             try:
-                with open("login_fail_dump.html", "w", encoding="utf-8") as f:
+                with open("scripts/login_fail_dump.html", "w", encoding="utf-8") as f:
                     f.write(self.driver.page_source or "Page source unavailable")
-                self.driver.save_screenshot("login_fail.png")
+                self.driver.save_screenshot("scripts/login_fail.png")
                 self.logger.info("Saved login_fail_dump.html and login_fail.png for debugging")
             except Exception as write_error:
                 self.logger.warning(f"Could not save debug files: {write_error}")
