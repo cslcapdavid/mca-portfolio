@@ -70,30 +70,33 @@ class CSLMCAScraper:
             self.driver.get("https://1workforce.com/n/login")
             time.sleep(3)
             self.logger.info("Waiting for username field...")
+    
             wait = WebDriverWait(self.driver, 15)
-            user_field = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='text']")))
+            user_field = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='text']")))
+            user_field.click()
+    
             pass_field = self.driver.find_element(By.CSS_SELECTOR, "input[type='password']")
-
-            self.logger.info("Filling in credentials...")
             user_field.send_keys(username)
             pass_field.send_keys(password)
             pass_field.send_keys(Keys.RETURN)
             time.sleep(5)
-
-            self.logger.info(f"Post-login URL: {self.driver.current_url}")
+    
             if any(x in self.driver.current_url for x in ["/dashboard", "/portfolio", "/cashadvance"]):
                 with open("cookies.pkl", "wb") as f:
                     pickle.dump(self.driver.get_cookies(), f)
                 return True
-
-            self.logger.warning("Login URL check failed - not redirected to dashboard")
+    
             return False
-
+    
         except Exception as e:
             self.logger.error(f"Login failed: {e}")
-            self.driver.save_screenshot("login_fail.png")
-            with open("login_fail_dump.html", "w", encoding="utf-8") as f:
-                f.write(self.driver.page_source)
+            try:
+                with open("login_fail_dump.html", "w", encoding="utf-8") as f:
+                    f.write(self.driver.page_source or "Page source unavailable")
+                self.driver.save_screenshot("login_fail.png")
+                self.logger.info("Saved login_fail_dump.html and login_fail.png for debugging")
+            except Exception as write_error:
+                self.logger.warning(f"Could not save debug files: {write_error}")
             return False
 
     def accept_terms_if_prompted(self):
