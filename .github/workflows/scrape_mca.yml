@@ -1,7 +1,5 @@
 name: MCA Scraper
 on:
-  schedule:
-    - cron: '0 9 * * 1-5'
   workflow_dispatch:
 
 jobs:
